@@ -4442,24 +4442,66 @@ async function aiGenerateWeek() {
 }
 
 async function aiBuildShopping() {
-  state.modal = { type: 'chat' };
-  state.chatMessages = [{ role: 'user', content: 'Construis ma liste de courses depuis mon planning de cette semaine.' }];
-  state.chatLoading = true;
+  if (!aiAvailable()) {
+    state.modal = { type: 'chat' };
+    state.chatMessages = [{ role: 'assistant', content: "**Assistant IA non configuré.**\n\nVa dans Réglages → IA Claude pour coller ta clé API Anthropic." }];
+    render();
+    return;
+  }
+
+  showToast('Construction de la liste en cours…');
   render();
 
   const wk = getWeekData(0);
   const planSummary = Object.entries(wk.days).map(([dateKey, day]) => {
-    const d = new Date(dateKey);
-    const services = Object.entries(day.services).filter(([k,v]) => v).map(([k,v]) => `${k}: ${v}`).join(', ');
+    const d = new Date(dateKey + 'T00:00:00');
+    const services = Object.entries(day.services).filter(([k, v]) => v).map(([k, v]) => `${k}: ${v}`).join(', ');
     return `${fmtDay(d)}: ${services || '(vide)'}`;
   }).join('\n');
 
-  const sys = getContextPrompt() + `\n\nPLANNING DE LA SEMAINE:\n${planSummary}\n\nL'utilisateur veut sa liste de courses. Liste les ingrédients nécessaires pour les plats planifiés, ORGANISÉE PAR FOURNISSEUR (Boucher / Poissonnier / Maraîcher / Supermarché / Cave). Pour chaque article: nom + quantité estimée pour ${state.data.settings.defaultCouverts} personnes. Vérifie d'abord ce qu'il y a déjà en stock et ne liste que ce qui manque.`;
+  const stockSummary = (state.data.inventory || []).map(i => `${i.name} (${i.qty}${i.unit || ''})`).join(', ') || '(vide)';
 
-  const response = await callClaude(sys, 'Construis ma liste de courses depuis mon planning, organisée par fournisseur, en tenant compte de mon stock actuel.', []);
+  const sys = getContextPrompt() + `\n\nPLANNING DE LA SEMAINE:\n${planSummary}\n\nSTOCK ACTUEL: ${stockSummary}\n\nListe les ingrédients nécessaires pour les plats planifiés, pour ${state.data.settings.defaultCouverts} personnes. Vérifie le stock et ne liste QUE ce qui manque. Choisis un "fournisseur" parmi : Boucher, Poissonnier, Maraîcher, Supermarché, Cave.\n\nRÉPONDS UNIQUEMENT avec un objet JSON valide, sans texte autour, au format EXACT :\n{"courses":[{"fournisseur":"Maraîcher","produit":"Carottes","quantite":"2.5 kg","prix_estime":3.5}, ...]}`;
 
-  state.chatMessages.push({ role: 'assistant', content: response });
-  state.chatLoading = false;
+  const response = await callClaude(sys, 'Construis ma liste de courses au format JSON strict décrit dans les consignes.', []);
+
+  let parsed = null;
+  try { parsed = parseWeekJSON(response); } catch (e) { parsed = null; }
+
+  // Repli sur l'affichage chat si le JSON est illisible.
+  if (!parsed || !Array.isArray(parsed.courses) || !parsed.courses.length) {
+    state.modal = { type: 'chat' };
+    state.chatMessages = [
+      { role: 'user', content: 'Construis ma liste de courses depuis mon planning de cette semaine.' },
+      { role: 'assistant', content: response },
+    ];
+    state.chatLoading = false;
+    render();
+    return;
+  }
+
+  // Ajout à la liste, sans doublon (par nom).
+  let added = 0;
+  parsed.courses.forEach(c => {
+    const name = String(c.produit || c.nom || '').trim();
+    if (!name) return;
+    if (state.data.shoppingList.some(x => (x.name || '').toLowerCase() === name.toLowerCase())) return;
+    state.data.shoppingList.push({
+      id: uid(),
+      name,
+      qty: String(c.quantite || '').trim(),
+      estPrice: parseFloat(c.prix_estime) || 0,
+      supplier: categoryToSupplier(c.fournisseur || c.categorie),
+      checked: false,
+    });
+    added++;
+  });
+
+  await saveData();
+  state.modal = null;
+  state.view = 'courses';
+  state.coursesSubview = 'shopping';
+  showToast(added ? `Liste mise à jour ✓ (+${added} article${added > 1 ? 's' : ''})` : 'Rien à ajouter (déjà en stock ou en liste)');
   render();
 }
 
