@@ -1,0 +1,235 @@
+{
+  "semaine": "2026-06-08",
+  "libelle": "Semaine du lundi 8 au dimanche 14 juin 2026",
+  "couverts": 4,
+  "repas": "diner",
+  "menus": [
+    {
+      "jour": "Lundi",
+      "date": "2026-06-08",
+      "vegetarien": false,
+      "plat": "Poulet rôti au citron & thym, pommes de terre grenaille",
+      "ingredients": [
+        { "nom": "Poulet fermier", "quantite": "1 (~1,5 kg)" },
+        { "nom": "Pommes de terre grenaille", "quantite": "1 kg" },
+        { "nom": "Citron", "quantite": "2" },
+        { "nom": "Ail", "quantite": "1 tête" },
+        { "nom": "Thym frais", "quantite": "quelques branches" },
+        { "nom": "Huile d'olive", "quantite": "QS" },
+        { "nom": "Beurre", "quantite": "20 g" },
+        { "nom": "Sel, poivre", "quantite": "QS" }
+      ],
+      "recette": [
+        "Préchauffer le four à 200°C.",
+        "Glisser 1 citron coupé en quartiers et quelques branches de thym à l'intérieur du poulet. Le badigeonner d'huile d'olive, saler et poivrer.",
+        "Disposer le poulet dans un plat, l'entourer des pommes de terre grenaille coupées en deux et des gousses d'ail en chemise. Filet d'huile d'olive et thym.",
+        "Enfourner 1 h 10 à 1 h 20 en arrosant à mi-cuisson avec le jus.",
+        "Laisser reposer 10 min, puis servir arrosé du jus citronné."
+      ]
+    },
+    {
+      "jour": "Mardi",
+      "date": "2026-06-09",
+      "vegetarien": true,
+      "plat": "Risotto crémeux aux champignons & parmesan, salade de roquette",
+      "ingredients": [
+        { "nom": "Riz arborio", "quantite": "320 g" },
+        { "nom": "Champignons de Paris", "quantite": "400 g" },
+        { "nom": "Oignon", "quantite": "1" },
+        { "nom": "Vin blanc sec", "quantite": "1 verre" },
+        { "nom": "Bouillon de légumes", "quantite": "1 L" },
+        { "nom": "Parmesan", "quantite": "80 g" },
+        { "nom": "Beurre", "quantite": "40 g" },
+        { "nom": "Roquette", "quantite": "100 g" },
+        { "nom": "Vinaigre balsamique", "quantite": "QS" },
+        { "nom": "Huile d'olive", "quantite": "QS" }
+      ],
+      "recette": [
+        "Faire chauffer le bouillon de légumes et le maintenir frémissant.",
+        "Émincer l'oignon et le faire suer au beurre. Ajouter les champignons émincés et cuire jusqu'à évaporation de l'eau.",
+        "Ajouter le riz arborio, nacrer 2 min, puis déglacer au vin blanc.",
+        "Verser le bouillon louche par louche en remuant, environ 18 min, jusqu'à une texture crémeuse et un riz al dente.",
+        "Hors du feu, incorporer le parmesan râpé et une noix de beurre (mantecare). Rectifier l'assaisonnement.",
+        "Servir avec la roquette assaisonnée d'huile d'olive et de vinaigre balsamique."
+      ]
+    },
+    {
+      "jour": "Mercredi",
+      "date": "2026-06-10",
+      "vegetarien": false,
+      "plat": "Saumon en papillote, riz basmati, courgettes",
+      "ingredients": [
+        { "nom": "Pavés de saumon", "quantite": "4" },
+        { "nom": "Riz basmati", "quantite": "250 g" },
+        { "nom": "Courgettes", "quantite": "2" },
+        { "nom": "Citron", "quantite": "1" },
+        { "nom": "Aneth", "quantite": "quelques brins" },
+        { "nom": "Huile d'olive", "quantite": "QS" },
+        { "nom": "Sel, poivre", "quantite": "QS" }
+      ],
+      "recette": [
+        "Préchauffer le four à 200°C.",
+        "Sur une feuille de papier cuisson, déposer un pavé de saumon, des rondelles de courgette, une rondelle de citron, de l'aneth, sel, poivre et un filet d'huile. Fermer la papillote. Répéter pour chaque pavé.",
+        "Cuire 15 à 18 min au four.",
+        "Cuire le riz basmati selon les indications du paquet (~11 min).",
+        "Servir la papillote ouverte sur le riz."
+      ]
+    },
+    {
+      "jour": "Jeudi",
+      "date": "2026-06-11",
+      "vegetarien": false,
+      "plat": "Dos de cabillaud, purée de patate douce, épinards",
+      "ingredients": [
+        { "nom": "Dos de cabillaud", "quantite": "4" },
+        { "nom": "Patates douces", "quantite": "800 g" },
+        { "nom": "Épinards frais", "quantite": "300 g" },
+        { "nom": "Beurre", "quantite": "30 g" },
+        { "nom": "Lait", "quantite": "10 cl" },
+        { "nom": "Ail", "quantite": "1 gousse" },
+        { "nom": "Noix de muscade", "quantite": "1 pincée" },
+        { "nom": "Sel, poivre", "quantite": "QS" }
+      ],
+      "recette": [
+        "Éplucher et couper les patates douces, les cuire 20 min à l'eau bouillante salée. Écraser avec le beurre et le lait, assaisonner de sel, poivre et muscade.",
+        "Poêler les dos de cabillaud 3 à 4 min par face dans un peu de beurre, assaisonner.",
+        "Faire tomber les épinards 2 à 3 min dans la poêle avec l'ail haché.",
+        "Dresser le cabillaud sur la purée, les épinards à côté."
+      ]
+    },
+    {
+      "jour": "Vendredi",
+      "date": "2026-06-12",
+      "vegetarien": false,
+      "plat": "Spaghetti bolognaise maison",
+      "ingredients": [
+        { "nom": "Spaghetti", "quantite": "400 g" },
+        { "nom": "Bœuf haché", "quantite": "500 g" },
+        { "nom": "Oignon", "quantite": "1" },
+        { "nom": "Ail", "quantite": "2 gousses" },
+        { "nom": "Carottes", "quantite": "2" },
+        { "nom": "Tomates concassées", "quantite": "1 boîte (400 g)" },
+        { "nom": "Concentré de tomate", "quantite": "1 c. à soupe" },
+        { "nom": "Parmesan", "quantite": "50 g" },
+        { "nom": "Huile d'olive", "quantite": "QS" },
+        { "nom": "Sel, poivre, herbes", "quantite": "QS" }
+      ],
+      "recette": [
+        "Émincer l'oignon, l'ail et les carottes, les faire revenir dans l'huile d'olive.",
+        "Ajouter le bœuf haché et le saisir. Ajouter le concentré, les tomates concassées, sel, poivre et herbes. Laisser mijoter 30 à 40 min à feu doux.",
+        "Cuire les spaghetti al dente.",
+        "Servir nappé de sauce et de parmesan râpé."
+      ]
+    },
+    {
+      "jour": "Samedi",
+      "date": "2026-06-13",
+      "vegetarien": false,
+      "plat": "Magret de canard, gratin dauphinois, haricots verts",
+      "ingredients": [
+        { "nom": "Magrets de canard", "quantite": "2" },
+        { "nom": "Pommes de terre", "quantite": "1 kg" },
+        { "nom": "Crème liquide", "quantite": "25 cl" },
+        { "nom": "Lait", "quantite": "25 cl" },
+        { "nom": "Ail", "quantite": "1 gousse" },
+        { "nom": "Haricots verts", "quantite": "400 g" },
+        { "nom": "Noix de muscade", "quantite": "1 pincée" },
+        { "nom": "Beurre", "quantite": "20 g" },
+        { "nom": "Sel, poivre", "quantite": "QS" }
+      ],
+      "recette": [
+        "Gratin : éplucher et trancher finement les pommes de terre. Mélanger crème, lait, ail haché et muscade, verser sur les pommes de terre disposées dans un plat. Cuire 1 h à 160°C.",
+        "Quadriller le gras des magrets, les saisir côté peau 6 à 7 min, puis 3 à 4 min côté chair. Laisser reposer, puis trancher.",
+        "Cuire les haricots verts 8 à 10 min, puis les sauter au beurre.",
+        "Dresser le magret tranché, le gratin et les haricots verts."
+      ]
+    },
+    {
+      "jour": "Dimanche",
+      "date": "2026-06-14",
+      "vegetarien": false,
+      "plat": "Rôti de porc, légumes-racines rôtis au romarin",
+      "ingredients": [
+        { "nom": "Rôti de porc", "quantite": "1 (~1 kg)" },
+        { "nom": "Carottes", "quantite": "4" },
+        { "nom": "Panais", "quantite": "2" },
+        { "nom": "Oignon rouge", "quantite": "1" },
+        { "nom": "Romarin", "quantite": "2 branches" },
+        { "nom": "Huile d'olive", "quantite": "QS" },
+        { "nom": "Sel, poivre", "quantite": "QS" }
+      ],
+      "recette": [
+        "Préchauffer le four à 190°C.",
+        "Saisir le rôti sur toutes ses faces dans une cocotte. Assaisonner et ajouter le romarin.",
+        "Couper les carottes, panais et oignon rouge en morceaux, les huiler et les saler.",
+        "Rôtir le tout environ 1 h (~25 min par 500 g) en arrosant régulièrement.",
+        "Laisser reposer 10 min avant de trancher."
+      ]
+    }
+  ],
+  "courses": [
+    {
+      "categorie": "Fruits & légumes",
+      "articles": [
+        { "nom": "Pommes de terre grenaille", "quantite": "1 kg" },
+        { "nom": "Pommes de terre (gratin)", "quantite": "1 kg" },
+        { "nom": "Patates douces", "quantite": "800 g" },
+        { "nom": "Champignons de Paris", "quantite": "400 g" },
+        { "nom": "Courgettes", "quantite": "2" },
+        { "nom": "Épinards frais", "quantite": "300 g" },
+        { "nom": "Haricots verts", "quantite": "400 g" },
+        { "nom": "Roquette", "quantite": "100 g (1 sachet)" },
+        { "nom": "Carottes", "quantite": "6" },
+        { "nom": "Panais", "quantite": "2" },
+        { "nom": "Oignons jaunes", "quantite": "2" },
+        { "nom": "Oignon rouge", "quantite": "1" },
+        { "nom": "Ail", "quantite": "1 tête" },
+        { "nom": "Citrons", "quantite": "3" }
+      ]
+    },
+    {
+      "categorie": "Viandes & poissons",
+      "articles": [
+        { "nom": "Poulet fermier", "quantite": "1 (~1,5 kg)" },
+        { "nom": "Pavés de saumon", "quantite": "4" },
+        { "nom": "Dos de cabillaud", "quantite": "4" },
+        { "nom": "Bœuf haché", "quantite": "500 g" },
+        { "nom": "Magrets de canard", "quantite": "2" },
+        { "nom": "Rôti de porc", "quantite": "1 (~1 kg)" }
+      ]
+    },
+    {
+      "categorie": "Crémerie",
+      "articles": [
+        { "nom": "Beurre", "quantite": "1 plaquette (250 g)" },
+        { "nom": "Crème liquide", "quantite": "25 cl" },
+        { "nom": "Lait", "quantite": "50 cl" },
+        { "nom": "Parmesan", "quantite": "150 g" }
+      ]
+    },
+    {
+      "categorie": "Épicerie",
+      "articles": [
+        { "nom": "Riz arborio", "quantite": "320 g" },
+        { "nom": "Riz basmati", "quantite": "250 g" },
+        { "nom": "Spaghetti", "quantite": "400 g" },
+        { "nom": "Bouillon de légumes", "quantite": "1 L" },
+        { "nom": "Tomates concassées", "quantite": "1 boîte (400 g)" },
+        { "nom": "Concentré de tomate", "quantite": "1 petit tube" },
+        { "nom": "Vin blanc sec", "quantite": "1 petit verre" },
+        { "nom": "Huile d'olive", "quantite": "à vérifier" },
+        { "nom": "Vinaigre balsamique", "quantite": "à vérifier" }
+      ]
+    },
+    {
+      "categorie": "Herbes & épices",
+      "articles": [
+        { "nom": "Thym frais", "quantite": "1 botte" },
+        { "nom": "Aneth", "quantite": "1 botte" },
+        { "nom": "Romarin", "quantite": "1 botte" },
+        { "nom": "Noix de muscade", "quantite": "à vérifier" },
+        { "nom": "Sel, poivre", "quantite": "à vérifier" }
+      ]
+    }
+  ]
+}
