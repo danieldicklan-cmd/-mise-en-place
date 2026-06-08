@@ -3261,6 +3261,17 @@ function renderModal() {
               </div>
             </div>
 
+            <div style="margin-top:18px;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">
+              <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.14em;color:var(--muted);font-weight:600;margin-bottom:8px;">Données (Import / Export)</div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.4;">
+                Exporte ta semaine, ta banque de plats, tes courses et ton stock en JSON (sauvegarde ou partage), ou importe un fichier au même format.
+              </div>
+              <div style="display:flex;gap:8px;">
+                <button class="btn btn-secondary btn-sm" data-action="export-json" style="flex:1;">Exporter JSON</button>
+                <button class="btn btn-secondary btn-sm" data-action="import-json" style="flex:1;">Importer JSON</button>
+              </div>
+            </div>
+
             <button class="btn btn-secondary btn-full" data-action="reset-data" style="margin-top: 14px; color: var(--rose);">
               Réinitialiser toutes les données
             </button>
@@ -4101,6 +4112,275 @@ async function aiCreateDish() {
   render();
 }
 
+// ============================================================
+// IMPORT / EXPORT JSON  (format d'échange documenté)
+// ============================================================
+
+// Correspondance "moment" du format d'échange -> clé de service interne.
+const MOMENT_TO_SERVICE = {
+  'matin': 'dejeuner', 'petit-dejeuner': 'dejeuner', 'petit-déjeuner': 'dejeuner',
+  'dejeuner': 'dejeuner', 'déjeuner': 'dejeuner',
+  'midi': 'midi', 'gouter': 'gouter', 'goûter': 'gouter', 'soir': 'soir',
+};
+
+// La vue Courses ne rend que des fournisseurs connus : on mappe une catégorie
+// d'import (ex. "Légumes & fruits", "Protéines") vers le fournisseur le plus proche.
+function categoryToSupplier(nom) {
+  const KNOWN = ['Boucher', 'Poissonnier', 'Maraîcher', 'Supermarché', 'Cave', 'Autre'];
+  if (KNOWN.includes(nom)) return nom;
+  const n = (nom || '').toLowerCase();
+  if (/poisson|fruits de mer|crustac/.test(n)) return 'Poissonnier';
+  if (/légume|legume|fruit|maraîch|maraich|primeur/.test(n)) return 'Maraîcher';
+  if (/viande|boucher|protéine|proteine|volaille|charcut/.test(n)) return 'Boucher';
+  if (/vin|cave|boisson|alcool/.test(n)) return 'Cave';
+  return 'Supermarché';
+}
+
+// Lundi (00:00 local) de la semaine contenant dateStr (YYYY-MM-DD).
+function mondayOf(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  if (isNaN(d.getTime())) return null;
+  const day = d.getDay() === 0 ? 7 : d.getDay();
+  d.setDate(d.getDate() - day + 1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+// Construit le document d'export au format d'échange (semaine + courses + plats + inventaire).
+function buildExportJSON(weekOffset = 0) {
+  const settings = state.data.settings || {};
+  const couvertsDef = settings.defaultCouverts || 1;
+
+  // --- semaine ---
+  const wk = getWeekData(weekOffset);
+  const dateKeys = Object.keys(wk.days);
+  let budgetTotal = 0;
+  const jours = dateKeys.map(dateKey => {
+    const day = wk.days[dateKey];
+    const personnes = day.couverts || couvertsDef;
+    const repas = ['dejeuner', 'midi', 'gouter', 'soir']
+      .filter(k => day.services[k])
+      .map(k => {
+        const dish = findDish(day.services[k]);
+        const cout = dish ? (dish.costPerPerson || 0) : 0;
+        budgetTotal += cout * personnes;
+        return {
+          moment: k,
+          plat: day.services[k],
+          categorie: dish ? dish.category : '',
+          cout_personne: cout,
+          temps_prep: dish ? (dish.prepTime || 0) : 0,
+          personnes,
+        };
+      });
+    return { jour: fmtDay(new Date(dateKey + 'T00:00:00')), date: dateKey, repas };
+  });
+
+  // --- courses (groupées par fournisseur) ---
+  const grouped = {};
+  (state.data.shoppingList || []).forEach(it => {
+    const g = it.supplier || 'Autre';
+    (grouped[g] = grouped[g] || []).push({
+      produit: it.name,
+      quantite: it.qty || '',
+      unite: '',
+      prix_estime: it.estPrice || 0,
+    });
+  });
+
+  // --- référentiel de plats ---
+  const platsValides = (state.data.menuBank || []).map(d => ({
+    id: d.id,
+    nom: d.name,
+    categorie: d.category,
+    cout_personne: d.costPerPerson || 0,
+    temps_prep: d.prepTime || 0,
+    ingredients: typeof d.ingredients === 'string'
+      ? d.ingredients.split(',').map(s => ({ nom: s.trim() })).filter(x => x.nom)
+      : (Array.isArray(d.ingredients) ? d.ingredients : []),
+    tags: d.tags || [],
+  }));
+
+  // --- inventaire ---
+  const produitsInv = (state.data.inventory || []).map(it => ({
+    nom: it.name,
+    quantite_actuelle: it.qty,
+    unite: it.unit,
+    seuil_alerte: it.threshold,
+    categorie: it.category,
+    statut: (typeof it.qty === 'number' && typeof it.threshold === 'number' && it.qty <= it.threshold) ? 'À_racheter' : 'OK',
+  }));
+
+  return {
+    semaine: {
+      date_debut: dateKeys[0] || getWeekKey(weekOffset),
+      budget_total: Math.round(budgetTotal * 100) / 100,
+      jours,
+    },
+    courses: {
+      date_generation: fmtDate(new Date()),
+      categories: Object.keys(grouped).map(nom => ({ nom, items: grouped[nom] })),
+    },
+    plats_valides: platsValides,
+    inventaire: {
+      derniere_maj: new Date().toISOString(),
+      produits: produitsInv,
+    },
+  };
+}
+
+// Fusionne un document importé dans state.data. Renvoie un résumé des éléments traités.
+function applyImportJSON(doc) {
+  const summary = { plats: 0, jours: 0, courses: 0, inventaire: 0 };
+  if (!doc || typeof doc !== 'object') throw new Error('JSON invalide');
+
+  // --- plats_valides -> menuBank (fusion par nom) ---
+  if (Array.isArray(doc.plats_valides)) {
+    doc.plats_valides.forEach(p => {
+      const nom = (p.nom || p.name || '').trim();
+      if (!nom) return;
+      const ingTxt = Array.isArray(p.ingredients)
+        ? p.ingredients.map(i => {
+            if (typeof i === 'string') return i;
+            const q = i.quantite != null ? ` (${i.quantite}${i.unite ? ' ' + i.unite : ''})` : '';
+            return (i.nom || '') + q;
+          }).filter(Boolean).join(', ')
+        : (typeof p.ingredients === 'string' ? p.ingredients : '');
+      const existing = state.data.menuBank.find(d => d.name === nom);
+      if (existing) {
+        if (p.categorie) existing.category = p.categorie;
+        if (p.cout_personne != null) existing.costPerPerson = p.cout_personne;
+        if (p.temps_prep != null) existing.prepTime = p.temps_prep;
+        if (ingTxt) existing.ingredients = ingTxt;
+        if (Array.isArray(p.tags)) existing.tags = p.tags;
+      } else {
+        state.data.menuBank.push({
+          id: uid(), name: nom,
+          category: p.categorie || 'Autre',
+          season: 'Toutes',
+          costPerPerson: p.cout_personne || 0,
+          prepTime: p.temps_prep || 0,
+          rating: 4,
+          ingredients: ingTxt,
+          tags: Array.isArray(p.tags) ? p.tags : [],
+        });
+      }
+      summary.plats++;
+    });
+  }
+
+  // --- semaine -> weeks/days/services ---
+  if (doc.semaine && Array.isArray(doc.semaine.jours)) {
+    doc.semaine.jours.forEach(j => {
+      if (!j.date) return;
+      const monday = mondayOf(j.date);
+      if (!monday) return;
+      const weekKey = fmtDate(monday);
+      if (!state.data.weeks[weekKey]) {
+        state.data.weeks[weekKey] = { days: {} };
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(monday); d.setDate(d.getDate() + i);
+          state.data.weeks[weekKey].days[fmtDate(d)] = {
+            couverts: (state.data.settings && state.data.settings.defaultCouverts) || 1,
+            services: { dejeuner: '', midi: '', gouter: '', soir: '' },
+            notes: '',
+          };
+        }
+      }
+      const day = state.data.weeks[weekKey].days[j.date];
+      if (!day) return;
+      (j.repas || []).forEach(r => {
+        const svc = MOMENT_TO_SERVICE[(r.moment || '').toLowerCase()];
+        if (!svc || !r.plat) return;
+        day.services[svc] = r.plat;
+        if (r.personnes) day.couverts = r.personnes;
+      });
+      summary.jours++;
+    });
+  }
+
+  // --- courses -> shoppingList ---
+  if (doc.courses && Array.isArray(doc.courses.categories)) {
+    doc.courses.categories.forEach(cat => {
+      (cat.items || []).forEach(it => {
+        const name = (it.produit || it.nom || it.name || '').trim();
+        if (!name) return;
+        const qty = it.quantite != null ? `${it.quantite}${it.unite ? ' ' + it.unite : ''}`.trim() : '';
+        state.data.shoppingList.push({
+          id: uid(), name, qty,
+          estPrice: it.prix_estime || 0,
+          supplier: categoryToSupplier(cat.nom),
+          checked: false,
+        });
+        summary.courses++;
+      });
+    });
+  }
+
+  // --- inventaire -> inventory (fusion par nom) ---
+  const invProduits = doc.inventaire && Array.isArray(doc.inventaire.produits)
+    ? doc.inventaire.produits
+    : (Array.isArray(doc.inventaire) ? doc.inventaire : null);
+  if (invProduits) {
+    invProduits.forEach(p => {
+      const name = (p.nom || p.name || '').trim();
+      if (!name) return;
+      const fields = {
+        qty: p.quantite_actuelle != null ? p.quantite_actuelle : (p.qty != null ? p.qty : 0),
+        unit: p.unite || p.unit || '',
+        threshold: p.seuil_alerte != null ? p.seuil_alerte : (p.threshold != null ? p.threshold : 0),
+        category: p.categorie || p.category || 'Autre',
+      };
+      const existing = state.data.inventory.find(x => x.name === name);
+      if (existing) Object.assign(existing, fields);
+      else state.data.inventory.push({ id: uid(), name, ...fields });
+      summary.inventaire++;
+    });
+  }
+
+  return summary;
+}
+
+async function exportDataJSON() {
+  try {
+    const doc = buildExportJSON(state.weekOffset || 0);
+    const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `mise-en-place-${fmtDate(new Date())}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast('Export JSON téléchargé ✓');
+  } catch (e) {
+    showToast('Erreur export : ' + (e.message || e));
+  }
+}
+
+function importDataJSON() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/json,.json';
+  input.addEventListener('change', async () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const doc = JSON.parse(text);
+      const s = applyImportJSON(doc);
+      await saveData();
+      state.modal = null;
+      render();
+      showToast(`Importé ✓ ${s.plats} plats · ${s.jours} jours · ${s.courses} courses · ${s.inventaire} stock`);
+    } catch (e) {
+      showToast('Erreur import : ' + (e.message || 'JSON illisible'));
+    }
+  });
+  input.click();
+}
+
 // Extrait un objet JSON d'une réponse IA (tolère les ```json … ``` ou le texte autour).
 function parseWeekJSON(txt) {
   let s = (txt || '').trim();
@@ -4445,6 +4725,8 @@ async function handleAction(action, el) {
       await saveData(); render();
       break;
     }
+    case 'export-json': await exportDataJSON(); break;
+    case 'import-json': importDataJSON(); break;
     case 'add-shop-item': state.modal = { type: 'shop-add' }; render(); break;
     case 'save-shop': {
       const name = document.getElementById('shop-name').value.trim();
