@@ -1,0 +1,11 @@
+# Configuration de déploiement Netlify
+# L'app est un fichier statique unique (index.html à la racine), aucun build nécessaire.
+
+[build]
+  publish = "."
+
+# SPA : toute route renvoie vers index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
