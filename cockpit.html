@@ -6,6 +6,14 @@
 <title>Cockpit — Gestion multi-sociétés</title>
 <meta name="theme-color" content="#B95C2C">
 <meta name="color-scheme" content="light">
+<link rel="manifest" href="cockpit.webmanifest">
+<link rel="icon" type="image/svg+xml" href="cockpit-icon.svg">
+<link rel="apple-touch-icon" href="cockpit-icon.svg">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Cockpit">
+<meta name="application-name" content="Cockpit">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700&family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -167,7 +175,10 @@
         <button class="iconbtn menu-btn" onclick="openMenu()" aria-label="Menu">☰</button>
         <h2 id="pageTitle">Tableau de bord</h2>
       </div>
-      <div class="row" id="pageActions"></div>
+      <div class="row">
+        <button class="btn ghost sm" id="installBtn" style="display:none" onclick="installApp()">⤓ Installer l'app</button>
+        <span class="row" id="pageActions"></span>
+      </div>
     </div>
     <div class="content" id="content"></div>
   </main>
@@ -1073,6 +1084,13 @@ function barChart(series){
 }
 
 render();
+
+/* ============================ PWA (install + hors-ligne) ============================ */
+let deferredPrompt=null;
+window.addEventListener('beforeinstallprompt',(e)=>{e.preventDefault();deferredPrompt=e;const b=document.getElementById('installBtn');if(b)b.style.display='inline-flex';});
+window.addEventListener('appinstalled',()=>{const b=document.getElementById('installBtn');if(b)b.style.display='none';toast('Application installée ✓');});
+function installApp(){if(!deferredPrompt)return;deferredPrompt.prompt();deferredPrompt.userChoice.finally(()=>{deferredPrompt=null;const b=document.getElementById('installBtn');if(b)b.style.display='none';});}
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')){window.addEventListener('load',()=>navigator.serviceWorker.register('cockpit-sw.js').catch(()=>{}));}
 </script>
 </body>
 </html>

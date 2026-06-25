@@ -1,0 +1,16 @@
+{
+  "name": "Cockpit — Gestion multi-sociétés",
+  "short_name": "Cockpit",
+  "description": "Planning, RDV, facturation, comptabilité et assistant e-mail pour plusieurs sociétés et indépendants.",
+  "start_url": "./cockpit.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F7F1E5",
+  "theme_color": "#B95C2C",
+  "lang": "fr-FR",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "cockpit-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "cockpit-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
