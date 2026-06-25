@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Cockpit — Gestion multi-sociétés</title>
 <meta name="theme-color" content="#B95C2C">
 <meta name="color-scheme" content="light">
@@ -63,14 +63,36 @@
 
   /* mobile */
   .menu-btn{display:none}
+  .bottomnav{display:none}
   @media(max-width:880px){
     .side{position:fixed;left:0;top:0;z-index:40;transform:translateX(-100%);transition:transform .2s ease;box-shadow:var(--shadow-lg)}
     .side.open{transform:translateX(0)}
     .menu-btn{display:inline-flex}
-    .content{padding:18px 16px 80px}
-    .topbar{padding:14px 16px}
+    .content{padding:16px 14px calc(86px + env(safe-area-inset-bottom))}
+    .topbar{padding:calc(12px + env(safe-area-inset-top)) 14px 12px}
+    .topbar h2{font-size:21px}
     .scrim{position:fixed;inset:0;background:rgba(26,22,17,.4);z-index:35;display:none}
     .scrim.open{display:block}
+    .kpi .val{font-size:26px}
+    .grid[style*="grid-template-columns:1.3fr"]{grid-template-columns:1fr!important}
+    .sectionhead{flex-wrap:wrap}
+    /* champs >=16px pour empêcher le zoom auto iOS */
+    input,select,textarea{font-size:16px}
+    /* fenêtres en feuille du bas */
+    .modal-bg{align-items:flex-end;padding:0}
+    .modal,.modal.wide{max-width:100%;border-radius:20px 20px 0 0;max-height:94vh;display:flex;flex-direction:column}
+    .modal-body{overflow:auto;-webkit-overflow-scrolling:touch}
+    .modal-head{position:sticky;top:0;background:var(--surface);z-index:1}
+    .modal-foot{position:sticky;bottom:0;background:var(--surface);padding-bottom:calc(16px + env(safe-area-inset-bottom));flex-wrap:wrap}
+    .modal-foot .btn{flex:1;justify-content:center}
+  }
+  /* barre de navigation mobile */
+  .bottomnav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 2px;color:var(--muted);font-size:10.5px;font-weight:600;border-radius:12px;transition:color .15s}
+  .bottomnav button .bic{font-size:21px;line-height:1}
+  .bottomnav button.active{color:var(--terracotta)}
+  .bottomnav button.active .bic{transform:translateY(-1px)}
+  @media(max-width:880px){
+    .bottomnav{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:36;background:rgba(255,254,250,.94);backdrop-filter:blur(10px);border-top:1px solid var(--border);padding:5px 4px calc(5px + env(safe-area-inset-bottom));box-shadow:0 -2px 14px rgba(26,22,17,.07)}
   }
 
   /* buttons */
@@ -182,6 +204,7 @@
     </div>
     <div class="content" id="content"></div>
   </main>
+  <nav class="bottomnav" id="bottomnav"></nav>
 </div>
 
 <div id="modalRoot"></div>
@@ -292,13 +315,19 @@ function renderCompanySel(){
   sel.innerHTML=`<option value="all">Toutes les sociétés</option>`+
     state.companies.map(c=>`<option value="${c.id}" ${state.activeCompany===c.id?'selected':''}>${esc(c.name)}</option>`).join('');
 }
+function renderBottomNav(){
+  const items=[['dash','Tableau','◰'],['agenda','RDV','◷'],['assistant','Assistant','✦'],['invoices','Factures','§']];
+  const bn=document.getElementById('bottomnav');
+  bn.innerHTML=items.map(([id,l,ic])=>`<button class="${current===id?'active':''}" onclick="go('${id}')"><span class="bic">${ic}</span>${l}</button>`).join('')
+    +`<button class="${['planning','clients','landing','pay','accounting','companies','contractors','settings'].includes(current)?'active':''}" onclick="openMenu()"><span class="bic">☰</span>Plus</button>`;
+}
 function setActiveCompany(v){state.activeCompany=v;save();render();}
 function openMenu(){document.getElementById('side').classList.add('open');document.getElementById('scrim').classList.add('open');}
 function closeMenu(){document.getElementById('side').classList.remove('open');document.getElementById('scrim').classList.remove('open');}
 
 /* ============================ Render ============================ */
 function render(){
-  renderNav();renderCompanySel();
+  renderNav();renderCompanySel();renderBottomNav();
   const page=PAGES.find(p=>p.id===current);
   document.getElementById('pageTitle').textContent=page?page.label:'Cockpit';
   document.getElementById('pageActions').innerHTML='';
