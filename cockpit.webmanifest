@@ -2,7 +2,7 @@
   "name": "Cockpit — Gestion multi-sociétés",
   "short_name": "Cockpit",
   "description": "Planning, RDV, facturation, comptabilité et assistant e-mail pour plusieurs sociétés et indépendants.",
-  "start_url": "./cockpit.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#F7F1E5",

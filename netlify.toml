@@ -1,5 +1,6 @@
 # Configuration de déploiement Netlify
-# L'app est un fichier statique unique (index.html à la racine), aucun build nécessaire.
+# Page d'accueil : Cockpit (index.html). L'ancienne app de repas reste sur /repas.html.
+# Fichiers statiques à la racine, aucun build nécessaire.
 
 [build]
   publish = "."

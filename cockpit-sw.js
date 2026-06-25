@@ -1,6 +1,6 @@
 /* Service worker — fonctionnement hors-ligne pour Cockpit */
-const CACHE = 'cockpit-v1';
-const ASSETS = ['./cockpit.html', './cockpit.webmanifest', './cockpit-icon.svg'];
+const CACHE = 'cockpit-v2';
+const ASSETS = ['./', './index.html', './cockpit.webmanifest', './cockpit-icon.svg'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
@@ -19,6 +19,6 @@ self.addEventListener('fetch', (e) => {
       const copy = resp.clone();
       caches.open(CACHE).then((c) => c.put(e.request, copy));
       return resp;
-    }).catch(() => caches.match('./cockpit.html')))
+    }).catch(() => caches.match('./index.html')))
   );
 });
