@@ -184,8 +184,15 @@ const todayISO=()=>new Date().toISOString().slice(0,10);
 
 let state=load();
 function load(){
-  try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.companies)return s;}catch(e){}
-  return seed();
+  let s=null;
+  try{s=JSON.parse(localStorage.getItem(KEY));}catch(e){}
+  if(!s||!s.companies)s=seed();
+  s.appointments=s.appointments||[];
+  s.settings=s.settings||{};
+  if(s.settings.currency==null)s.settings.currency='EUR';
+  if(s.settings.vatDefault==null)s.settings.vatDefault=20;
+  if(s.settings.aiModel==null)s.settings.aiModel='claude-sonnet-4-6';
+  return s;
 }
 function save(){localStorage.setItem(KEY,JSON.stringify(state));}
 function seed(){
@@ -197,8 +204,8 @@ function seed(){
     activeCompany:'all',
     settings:{currency:'EUR',vatDefault:20},
     companies:[
-      {id:c1,name:'Atelier Dany',color:'#B95C2C',siret:'',email:'contact@atelier-dany.fr',phone:'',address:'',iban:'',slogan:'Artisanat sur mesure',description:'Studio de création et de services à la demande.',services:['Conseil','Réalisation','Suivi'],nextInvoice:1,invoicePrefix:'AD'},
-      {id:c2,name:'Studio Nord',color:'#3E6680',siret:'',email:'hello@studio-nord.fr',phone:'',address:'',iban:'',slogan:'Design & web',description:'Création de sites et identités visuelles.',services:['Web','Branding'],nextInvoice:1,invoicePrefix:'SN'},
+      {id:c1,name:'Atelier Dany',color:'#B95C2C',siret:'',email:'contact@atelier-dany.fr',phone:'',address:'',iban:'',slogan:'Artisanat sur mesure',description:'Studio de création et de services à la demande.',services:['Conseil','Réalisation','Suivi'],nextInvoice:2,invoicePrefix:'AD'},
+      {id:c2,name:'Studio Nord',color:'#3E6680',siret:'',email:'hello@studio-nord.fr',phone:'',address:'',iban:'',slogan:'Design & web',description:'Création de sites et identités visuelles.',services:['Web','Branding'],nextInvoice:2,invoicePrefix:'SN'},
     ],
     contractors:[
       {id:k1,companyId:c1,name:'Camille Roy',role:'Décoration',email:'camille@x.fr',phone:'',rate:45,rateType:'h',color:colorPool[1]},
@@ -213,7 +220,14 @@ function seed(){
       {id:uid(),companyId:c1,contractorId:k1,clientId:cl1,date:todayISO(),start:'09:00',end:'13:00',title:'Aménagement salon',notes:'',billed:false},
       {id:uid(),companyId:c1,contractorId:k2,clientId:cl1,date:todayISO(),start:'14:00',end:'18:00',title:'Pose étagères',notes:'',billed:false},
     ],
-    invoices:[],
+    invoices:[
+      {id:uid(),companyId:c1,type:'facture',number:'F-AD2026-001',clientId:cl1,date:todayISO(),dueDate:'',status:'payee',notes:'Paiement à 30 jours. Merci de votre confiance.',items:[{label:'Aménagement salon — prestation complète',qty:1,unitPrice:1200,vat:20}]},
+      {id:uid(),companyId:c1,type:'devis',number:'D-AD2026-001',clientId:cl1,date:todayISO(),dueDate:'',status:'brouillon',notes:'Devis valable 30 jours.',items:[{label:'Pose étagères sur mesure',qty:1,unitPrice:480,vat:20}]},
+      {id:uid(),companyId:c2,type:'facture',number:'F-SN2026-001',clientId:cl2,date:todayISO(),dueDate:'',status:'envoyee',notes:'',items:[{label:'Création site vitrine (5 pages)',qty:1,unitPrice:2500,vat:20}]},
+    ],
+    appointments:[
+      {id:uid(),companyId:c1,contractorId:k1,clientId:cl1,date:todayISO(),time:'10:30',duration:60,title:'Visite & devis aménagement',location:'Chez le client',status:'confirme',notes:'',clientEmail:'lambert@x.fr'},
+    ],
     transactions:[
       {id:uid(),companyId:c1,date:todayISO(),type:'depense',category:'Fournitures',label:'Quincaillerie',amount:120,vat:20},
     ],
@@ -240,6 +254,9 @@ const PAGES=[
   {grp:'Pilotage'},
   {id:'dash',label:'Tableau de bord',ic:'◰'},
   {id:'planning',label:'Planning',ic:'▤'},
+  {id:'agenda',label:'Agenda / RDV',ic:'◷'},
+  {grp:'Assistant'},
+  {id:'assistant',label:'Assistant e-mail',ic:'✦'},
   {grp:'Commercial'},
   {id:'invoices',label:'Facturation',ic:'§'},
   {id:'clients',label:'Clients',ic:'☻'},
@@ -274,7 +291,7 @@ function render(){
   const page=PAGES.find(p=>p.id===current);
   document.getElementById('pageTitle').textContent=page?page.label:'Cockpit';
   document.getElementById('pageActions').innerHTML='';
-  const fns={dash:viewDash,planning:viewPlanning,invoices:viewInvoices,clients:viewClients,
+  const fns={dash:viewDash,planning:viewPlanning,agenda:viewAgenda,assistant:viewAssistant,invoices:viewInvoices,clients:viewClients,
     landing:viewLanding,pay:viewPay,accounting:viewAccounting,companies:viewCompanies,contractors:viewContractors,settings:viewSettings};
   (fns[current]||viewDash)();
   save();
@@ -295,6 +312,7 @@ function viewDash(){
   const resultat=encaisse+recettesDiv-depenses;
   const upcoming=evs.filter(e=>e.date>=todayISO()).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start)).slice(0,6);
   const devisOuverts=invs.filter(i=>i.type==='devis'&&i.status!=='annulee').length;
+  const rdvAConfirmer=activeFilter(state.appointments).filter(r=>r.status==='a_confirmer'&&r.date>=todayISO()).length;
   const coutIndep=evs.reduce((s,e)=>s+eventAmount(e),0);
   const aPayer=evs.filter(e=>!e.paidToContractor).reduce((s,e)=>s+eventAmount(e),0);
   const marge=caFacture-coutIndep;
@@ -351,6 +369,7 @@ function viewDash(){
       </div>
       <div class="card pad">
         <div class="sectionhead"><h3>À traiter</h3></div>
+        <div class="row" style="padding:10px 0;border-bottom:1px solid var(--border)"><div style="flex:1"><span class="linkbtn" onclick="go('agenda')">RDV à confirmer</span></div><span class="pill amber">${rdvAConfirmer}</span></div>
         <div class="row" style="padding:10px 0;border-bottom:1px solid var(--border)"><div style="flex:1">Devis ouverts</div><span class="pill blue">${devisOuverts}</span></div>
         <div class="row" style="padding:10px 0;border-bottom:1px solid var(--border)"><div style="flex:1">Factures à relancer</div><span class="pill amber">${facture.filter(i=>i.status==='envoyee').length}</span></div>
         <div class="row" style="padding:10px 0;border-bottom:1px solid var(--border)"><div style="flex:1">Missions non facturées</div><span class="pill red">${evs.filter(e=>!e.billed&&e.date<=todayISO()).length}</span></div>
@@ -652,6 +671,146 @@ function exportLanding(id){
   download(`landing-${slug(co.name)}.html`,html);toast('Landing page exportée');
 }
 
+/* ---------- Agenda / RDV ---------- */
+const RDV_STATUS={a_confirmer:{l:'À confirmer',c:'amber'},confirme:{l:'Confirmé',c:'green'},annule:{l:'Annulé',c:'red'},honore:{l:'Honoré',c:'grey'}};
+function viewAgenda(){
+  setActions(`<button class="btn" onclick="rdvModal()">+ Rendez-vous</button>`);
+  const list=activeFilter(state.appointments).slice().sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+  const upcoming=list.filter(r=>r.date>=todayISO()&&r.status!=='annule');
+  const past=list.filter(r=>r.date<todayISO()||r.status==='annule');
+  const card=(r)=>{const cl=clientById(r.clientId),k=contractorById(r.contractorId),co=companyById(r.companyId),st=RDV_STATUS[r.status]||RDV_STATUS.a_confirmer;
+    return `<div class="card pad" style="display:flex;gap:14px;align-items:flex-start;margin-bottom:10px">
+      <div style="text-align:center;min-width:62px"><div class="serif" style="font-size:24px;font-weight:600;color:${co?co.color:'var(--terracotta)'}">${new Date(r.date+'T00:00').getDate()}</div><div class="mini">${new Date(r.date+'T00:00').toLocaleDateString('fr-FR',{month:'short'})}</div><div class="mini num">${r.time}</div></div>
+      <div style="flex:1">
+        <div class="row" style="gap:8px"><b>${esc(r.title)}</b><span class="pill ${st.c}">${st.l}</span></div>
+        <div class="mini" style="margin-top:3px">${cl?'☻ '+esc(cl.name):''}${k?' · ⚒ '+esc(k.name):''}${r.location?' · ⚲ '+esc(r.location):''}${r.duration?' · '+r.duration+' min':''}</div>
+        ${r.notes?`<div class="mini" style="margin-top:5px">${esc(r.notes)}</div>`:''}
+        <div class="row wrap" style="margin-top:10px;gap:8px">
+          ${r.status!=='confirme'?`<button class="btn sage sm" onclick="setRdvStatus('${r.id}','confirme')">✓ Confirmer</button>`:''}
+          ${r.clientEmail||(cl&&cl.email)?`<button class="btn ghost sm" onclick="rdvReminder('${r.id}')">✉ Rappel</button>`:''}
+          <button class="btn ghost sm" onclick="rdvModal('${r.id}')">Modifier</button>
+          ${r.status!=='annule'?`<button class="btn ghost sm" onclick="setRdvStatus('${r.id}','annule')">Annuler</button>`:''}
+        </div>
+      </div></div>`;};
+  document.getElementById('content').innerHTML=`
+    <div class="sectionhead"><h3>À venir</h3><span class="pill">${upcoming.length}</span></div>
+    ${upcoming.length?upcoming.map(card).join(''):`<div class="empty"><div class="big">◷</div>Aucun rendez-vous à venir.<br><span class="linkbtn" onclick="rdvModal()">Planifier un RDV</span></div>`}
+    ${past.length?`<div class="sectionhead" style="margin-top:24px"><h3 class="muted">Passés / annulés</h3></div>${past.slice(0,10).map(card).join('')}`:''}`;
+}
+function setRdvStatus(id,s){const r=state.appointments.find(x=>x.id===id);if(r){r.status=s;save();toast('Statut mis à jour');render();}}
+function rdvReminder(id){
+  const r=state.appointments.find(x=>x.id===id);const cl=clientById(r.clientId),co=companyById(r.companyId);
+  const to=r.clientEmail||(cl&&cl.email)||'';
+  const subject=`Rappel de rendez-vous — ${fmtDate(r.date)} à ${r.time}`;
+  const body=`Bonjour${cl&&cl.contact?' '+cl.contact:''},\n\nJe vous confirme notre rendez-vous :\n• Objet : ${r.title}\n• Date : ${fmtDate(r.date)} à ${r.time}\n${r.location?'• Lieu : '+r.location+'\n':''}\nÀ très bientôt,\n${co?co.name:''}`;
+  window.location.href=`mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+function rdvModal(id){
+  const isNew=!id;const r=id?state.appointments.find(x=>x.id===id):{id:uid(),companyId:defaultCompany(),contractorId:'',clientId:'',date:todayISO(),time:'09:00',duration:60,title:'',location:'',status:'a_confirmer',notes:'',clientEmail:''};
+  openModal(isNew?'Nouveau rendez-vous':'Modifier le rendez-vous',`
+    <div class="formgrid">
+      <div class="full"><label>Objet</label><input id="r_title" value="${esc(r.title)}" placeholder="Ex. Visite de chantier"></div>
+      <div><label>Société</label><select id="r_company">${companyOptions(r.companyId)}</select></div>
+      <div><label>Indépendant</label><select id="r_contractor">${contractorOptions(r.contractorId,r.companyId)}</select></div>
+      <div><label>Client</label><select id="r_client">${clientOptions(r.clientId,r.companyId)}</select></div>
+      <div><label>Email client (rappels)</label><input id="r_email" value="${esc(r.clientEmail)}" placeholder="optionnel"></div>
+      <div><label>Date</label><input type="date" id="r_date" value="${r.date}"></div>
+      <div><label>Heure</label><input type="time" id="r_time" value="${r.time}"></div>
+      <div><label>Durée (min)</label><input type="number" id="r_duration" value="${r.duration}"></div>
+      <div><label>Statut</label><select id="r_status">${Object.entries(RDV_STATUS).map(([k,v])=>`<option value="${k}" ${r.status===k?'selected':''}>${v.l}</option>`).join('')}</select></div>
+      <div class="full"><label>Lieu</label><input id="r_location" value="${esc(r.location)}"></div>
+      <div class="full"><label>Notes</label><textarea id="r_notes" rows="2">${esc(r.notes)}</textarea></div>
+    </div>`,[
+    isNew?'':{label:'Supprimer',cls:'danger',act:()=>{state.appointments=state.appointments.filter(x=>x.id!==r.id);closeModal();render();}},
+    {label:'Enregistrer',cls:'',act:()=>{r.title=val('r_title')||'Rendez-vous';r.companyId=val('r_company');r.contractorId=val('r_contractor');r.clientId=val('r_client');r.clientEmail=val('r_email');r.date=val('r_date');r.time=val('r_time');r.duration=parseInt(val('r_duration'))||60;r.status=val('r_status');r.location=val('r_location');r.notes=val('r_notes');if(isNew)state.appointments.push(r);closeModal();toast('Rendez-vous enregistré');render();}}
+  ].filter(Boolean));
+}
+
+/* ---------- Assistant e-mail (IA) ---------- */
+async function callClaude(system,user){
+  const key=state.settings.aiKey;
+  if(!key)throw new Error('Ajoute ta clé API Claude dans Réglages.');
+  const res=await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({model:state.settings.aiModel||'claude-sonnet-4-6',max_tokens:1500,system,messages:[{role:'user',content:user}]})
+  });
+  if(!res.ok){const t=await res.text();throw new Error('API '+res.status+' : '+t.slice(0,200));}
+  const data=await res.json();
+  return (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+}
+function viewAssistant(){
+  setActions('');
+  const hasKey=!!state.settings.aiKey;
+  document.getElementById('content').innerHTML=`
+    <div class="card pad" style="margin-bottom:16px">
+      <div class="sectionhead"><h3>Assistant e-mail</h3>${hasKey?'<span class="pill green">IA active</span>':'<span class="pill amber">Clé API requise</span>'}</div>
+      <p class="mini">Colle un e-mail reçu d'un client. L'assistant le résume, propose <b>la société et l'indépendant</b> à qui le dispatcher, rédige une <b>réponse</b>, et détecte un éventuel <b>rendez-vous</b> à créer.</p>
+      ${hasKey?'':`<div class="row wrap" style="margin-top:8px"><input id="ai_key" type="password" placeholder="Clé API Claude (sk-ant-…)" style="max-width:360px"><button class="btn sm" onclick="saveAiKey()">Enregistrer la clé</button><span class="hint">Stockée uniquement sur cet appareil. <a href="https://console.anthropic.com/settings/keys" target="_blank">Obtenir une clé</a></span></div>`}
+    </div>
+    <div class="card pad">
+      <label>E-mail reçu</label>
+      <textarea id="ai_email" rows="8" placeholder="Collez ici le contenu de l'e-mail (et l'adresse de l'expéditeur si possible)…"></textarea>
+      <div class="row" style="margin-top:12px"><button class="btn" onclick="analyzeEmail()" ${hasKey?'':'disabled style="opacity:.5"'}>✦ Analyser & dispatcher</button><span class="sp"></span><span class="hint">Modèle : ${esc(state.settings.aiModel)}</span></div>
+    </div>
+    <div id="ai_result" style="margin-top:16px"></div>`;
+}
+function saveAiKey(){const k=val('ai_key').trim();if(!k)return;state.settings.aiKey=k;save();toast('Clé enregistrée');render();}
+async function analyzeEmail(){
+  const email=val('ai_email').trim();
+  if(!email){toast('Colle d\'abord un e-mail');return;}
+  const out=document.getElementById('ai_result');
+  out.innerHTML=`<div class="card pad"><span class="muted">Analyse en cours…</span></div>`;
+  const ctx=`Sociétés disponibles :\n`+state.companies.map(c=>`- ${c.name} (services : ${(c.services||[]).join(', ')||'n/a'})`).join('\n')
+    +`\n\nIndépendants disponibles :\n`+state.contractors.map(k=>`- ${k.name} — ${k.role} (société : ${(companyById(k.companyId)||{}).name||''})`).join('\n');
+  const system=`Tu es l'assistant d'un dirigeant qui gère plusieurs sociétés d'indépendants. Tu tries les e-mails clients, tu les dispatches au bon interlocuteur et tu rédiges les réponses. Réponds UNIQUEMENT par un objet JSON valide, sans texte autour, avec ce schéma :
+{"resume":"1-2 phrases","type":"demande_devis|prise_rdv|question|facture|autre","urgence":"haute|normale|basse","societe":"nom exact d'une société de la liste ou ''","independant":"nom exact d'un indépendant de la liste ou ''","rdv":{"date":"YYYY-MM-DD","heure":"HH:MM","objet":"...","lieu":""} ou null,"reponse":"texte d'e-mail de réponse poli et professionnel en français, signé au nom de la société"}
+Aujourd'hui nous sommes le ${todayISO()}. Contexte :\n${ctx}`;
+  try{
+    const txt=await callClaude(system,'E-mail reçu :\n\n'+email);
+    const j=JSON.parse(txt.slice(txt.indexOf('{'),txt.lastIndexOf('}')+1));
+    window._aiResult=j;window._aiEmail=email;
+    renderAiResult(j);
+  }catch(e){
+    out.innerHTML=`<div class="card pad"><span class="pill red">Erreur</span> <div class="mini" style="margin-top:8px">${esc(e.message)}</div></div>`;
+  }
+}
+function renderAiResult(j){
+  const co=state.companies.find(c=>c.name===j.societe);
+  const k=state.contractors.find(x=>x.name===j.independant);
+  const urg={haute:'red',normale:'blue',basse:'grey'}[j.urgence]||'grey';
+  document.getElementById('ai_result').innerHTML=`
+    <div class="card pad">
+      <div class="row wrap" style="gap:8px"><span class="pill blue">${esc(j.type||'autre')}</span><span class="pill ${urg}">urgence ${esc(j.urgence||'normale')}</span>${co?`<span class="pill"><span class="dot" style="background:${co.color}"></span>${esc(co.name)}</span>`:''}${k?`<span class="pill">⚒ ${esc(k.name)}</span>`:''}</div>
+      <p style="margin:12px 0 4px"><b>Résumé.</b> ${esc(j.resume||'')}</p>
+      ${j.rdv?`<div class="card pad" style="background:var(--paper-2);margin-top:10px"><b>📅 Rendez-vous détecté</b><div class="mini">${esc(j.rdv.objet||'')} — ${fmtDate(j.rdv.date)} à ${esc(j.rdv.heure||'')}${j.rdv.lieu?' · '+esc(j.rdv.lieu):''}</div><button class="btn sage sm" style="margin-top:8px" onclick="createRdvFromAi()">+ Créer ce RDV</button></div>`:''}
+      <label style="margin-top:14px">Réponse proposée</label>
+      <textarea id="ai_reply" rows="8">${esc(j.reponse||'')}</textarea>
+      <div class="row wrap" style="margin-top:12px;gap:8px">
+        <button class="btn" onclick="sendAiReply()">✉ Envoyer la réponse</button>
+        ${co?`<button class="btn ghost" onclick="setActiveCompany('${co.id}');toast('Société active : ${esc(co.name)}')">→ Basculer sur ${esc(co.name)}</button>`:''}
+        <button class="btn ghost" onclick="aiCreateDevis()">+ Préparer un devis</button>
+      </div>
+    </div>`;
+}
+function createRdvFromAi(){
+  const j=window._aiResult;if(!j||!j.rdv)return;
+  const co=state.companies.find(c=>c.name===j.societe);const k=state.contractors.find(x=>x.name===j.independant);
+  const email=(window._aiEmail.match(/[\w.+-]+@[\w-]+\.[\w.-]+/)||[''])[0];
+  state.appointments.push({id:uid(),companyId:co?co.id:defaultCompany(),contractorId:k?k.id:'',clientId:'',date:j.rdv.date||todayISO(),time:j.rdv.heure||'09:00',duration:60,title:j.rdv.objet||'Rendez-vous',location:j.rdv.lieu||'',status:'a_confirmer',notes:'Créé depuis l\'assistant e-mail',clientEmail:email});
+  save();toast('RDV créé');go('agenda');
+}
+function sendAiReply(){
+  const email=(window._aiEmail.match(/[\w.+-]+@[\w-]+\.[\w.-]+/)||[''])[0];
+  const body=val('ai_reply');
+  window.location.href=`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent('Votre demande')}&body=${encodeURIComponent(body)}`;
+}
+function aiCreateDevis(){
+  const j=window._aiResult;const co=state.companies.find(c=>c.name===j.societe);
+  if(co)state.activeCompany=co.id;
+  go('invoices');newInvoice('devis');
+}
+
 /* ---------- Rémunérations (paie indépendants) ---------- */
 function viewPay(){
   setActions('');
@@ -845,6 +1004,18 @@ function viewSettings(){
       <div class="formgrid">
         <div><label>Devise</label><select id="set_cur" onchange="state.settings.currency=this.value;save();render()"><option ${state.settings.currency==='EUR'?'selected':''}>EUR</option><option ${state.settings.currency==='CHF'?'selected':''}>CHF</option><option ${state.settings.currency==='USD'?'selected':''}>USD</option></select></div>
         <div><label>TVA par défaut (%)</label><input type="number" id="set_vat" value="${state.settings.vatDefault}" onchange="state.settings.vatDefault=parseFloat(this.value)||0;save()"></div>
+      </div>
+    </div>
+    <div class="card pad" style="margin-bottom:16px">
+      <div class="sectionhead"><h3>Assistant e-mail (IA)</h3>${state.settings.aiKey?'<span class="pill green">Configuré</span>':'<span class="pill grey">Non configuré</span>'}</div>
+      <p class="mini">La clé permet à l'assistant de trier, dispatcher et répondre aux e-mails. Elle reste sur cet appareil.</p>
+      <div class="formgrid">
+        <div><label>Clé API Claude</label><input type="password" id="set_aikey" value="${esc(state.settings.aiKey||'')}" placeholder="sk-ant-…" onchange="state.settings.aiKey=this.value.trim();save();render()"></div>
+        <div><label>Modèle</label><select id="set_aimodel" onchange="state.settings.aiModel=this.value;save()">
+          <option value="claude-sonnet-4-6" ${state.settings.aiModel==='claude-sonnet-4-6'?'selected':''}>Claude Sonnet 4.6 (rapide)</option>
+          <option value="claude-opus-4-8" ${state.settings.aiModel==='claude-opus-4-8'?'selected':''}>Claude Opus 4.8 (qualité max)</option>
+          <option value="claude-haiku-4-5-20251001" ${state.settings.aiModel==='claude-haiku-4-5-20251001'?'selected':''}>Claude Haiku 4.5 (économique)</option>
+        </select></div>
       </div>
     </div>
     <div class="card pad" style="margin-bottom:16px">
