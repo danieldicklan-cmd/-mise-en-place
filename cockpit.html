@@ -245,6 +245,7 @@ const PAGES=[
   {id:'clients',label:'Clients',ic:'☻'},
   {id:'landing',label:'Landing pages',ic:'❖'},
   {grp:'Gestion'},
+  {id:'pay',label:'Rémunérations',ic:'€'},
   {id:'accounting',label:'Comptabilité',ic:'∑'},
   {id:'companies',label:'Sociétés',ic:'⌂'},
   {id:'contractors',label:'Indépendants',ic:'⚒'},
@@ -274,7 +275,7 @@ function render(){
   document.getElementById('pageTitle').textContent=page?page.label:'Cockpit';
   document.getElementById('pageActions').innerHTML='';
   const fns={dash:viewDash,planning:viewPlanning,invoices:viewInvoices,clients:viewClients,
-    landing:viewLanding,accounting:viewAccounting,companies:viewCompanies,contractors:viewContractors,settings:viewSettings};
+    landing:viewLanding,pay:viewPay,accounting:viewAccounting,companies:viewCompanies,contractors:viewContractors,settings:viewSettings};
   (fns[current]||viewDash)();
   save();
 }
@@ -294,9 +295,22 @@ function viewDash(){
   const resultat=encaisse+recettesDiv-depenses;
   const upcoming=evs.filter(e=>e.date>=todayISO()).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start)).slice(0,6);
   const devisOuverts=invs.filter(i=>i.type==='devis'&&i.status!=='annulee').length;
+  const coutIndep=evs.reduce((s,e)=>s+eventAmount(e),0);
+  const aPayer=evs.filter(e=>!e.paidToContractor).reduce((s,e)=>s+eventAmount(e),0);
+  const marge=caFacture-coutIndep;
 
   setActions(`<button class="btn" onclick="newInvoice()">+ Facture</button>`);
   const kpi=(lab,val,sub,color)=>`<div class="card kpi"><div class="lab">${lab}</div><div class="val num">${val}</div><div class="delta">${sub||''}</div><div class="accent" style="background:${color}"></div></div>`;
+
+  // monthly revenue chart (6 months)
+  const months=[];const now=new Date();
+  for(let i=5;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);months.push({key:d.toISOString().slice(0,7),label:d.toLocaleDateString('fr-FR',{month:'short'})});}
+  const series=months.map(m=>{
+    const rev=facture.filter(i=>i.status==='payee'&&(i.date||'').slice(0,7)===m.key).reduce((s,i)=>s+invoiceTotals(i).ttc,0)
+      +txns.filter(t=>t.type==='recette'&&(t.date||'').slice(0,7)===m.key).reduce((s,t)=>s+t.amount*(1+(t.vat||0)/100),0);
+    const exp=txns.filter(t=>t.type==='depense'&&(t.date||'').slice(0,7)===m.key).reduce((s,t)=>s+t.amount*(1+(t.vat||0)/100),0);
+    return {...m,rev,exp};
+  });
 
   let perCompany='';
   if(state.activeCompany==='all'){
@@ -318,8 +332,12 @@ function viewDash(){
     <div class="grid kpis">
       ${kpi('CA facturé',fmtMoney(caFacture),facture.length+' facture(s)','var(--terracotta)')}
       ${kpi('Encaissé',fmtMoney(encaisse),'Payé','var(--sage)')}
-      ${kpi('En attente',fmtMoney(enAttente),'Factures envoyées','var(--amber)')}
-      ${kpi('Résultat',fmtMoney(resultat),'Encaissé − dépenses','var(--blue)')}
+      ${kpi('Marge',fmtMoney(marge),'CA − coût indépendants','var(--blue)')}
+      ${kpi('À payer aux indép.',fmtMoney(aPayer),'Missions non réglées','var(--amber)')}
+    </div>
+    <div class="card pad" style="margin-top:18px">
+      <div class="sectionhead"><h3>Évolution sur 6 mois</h3><div class="row"><span class="pill" style="border-color:var(--sage)"><span class="dot" style="background:var(--sage)"></span>Recettes</span><span class="pill" style="border-color:var(--rose)"><span class="dot" style="background:var(--rose)"></span>Dépenses</span></div></div>
+      ${barChart(series)}
     </div>
     <div class="grid" style="grid-template-columns:1.3fr 1fr;margin-top:18px">
       <div class="card pad">
@@ -378,7 +396,7 @@ function newEvent(date){eventModal(null,date);}
 function editEvent(id){eventModal(state.events.find(e=>e.id===id));}
 function eventModal(ev,presetDate){
   const isNew=!ev;
-  ev=ev||{id:uid(),companyId:defaultCompany(),contractorId:'',clientId:'',date:presetDate||todayISO(),start:'09:00',end:'12:00',title:'',notes:'',billed:false};
+  ev=ev||{id:uid(),companyId:defaultCompany(),contractorId:'',clientId:'',date:presetDate||todayISO(),start:'09:00',end:'12:00',title:'',notes:'',billed:false,paidToContractor:false};
   openModal(isNew?'Nouvelle mission':'Modifier la mission',`
     <div class="formgrid">
       <div class="full"><label>Intitulé</label><input id="ev_title" value="${esc(ev.title)}" placeholder="Ex. Aménagement salon"></div>
@@ -389,12 +407,13 @@ function eventModal(ev,presetDate){
       <div><label>Début</label><input type="time" id="ev_start" value="${ev.start}"></div>
       <div><label>Fin</label><input type="time" id="ev_end" value="${ev.end}"></div>
       <div class="full"><label>Notes</label><textarea id="ev_notes" rows="2">${esc(ev.notes)}</textarea></div>
-      <div class="full"><label class="row" style="text-transform:none;font-size:14px"><input type="checkbox" id="ev_billed" ${ev.billed?'checked':''} style="width:auto;margin-right:8px"> Déjà facturé</label></div>
+      <div><label class="row" style="text-transform:none;font-size:14px"><input type="checkbox" id="ev_billed" ${ev.billed?'checked':''} style="width:auto;margin-right:8px"> Déjà facturé au client</label></div>
+      <div><label class="row" style="text-transform:none;font-size:14px"><input type="checkbox" id="ev_paid" ${ev.paidToContractor?'checked':''} style="width:auto;margin-right:8px"> Payé à l'indépendant</label></div>
     </div>`,[
       isNew?'':{label:'Supprimer',cls:'danger',act:()=>{state.events=state.events.filter(e=>e.id!==ev.id);closeModal();toast('Mission supprimée');render();}},
       {label:'Enregistrer',cls:'',act:()=>{
         ev.title=val('ev_title')||'Mission';ev.companyId=val('ev_company');ev.contractorId=val('ev_contractor');ev.clientId=val('ev_client');
-        ev.date=val('ev_date');ev.start=val('ev_start');ev.end=val('ev_end');ev.notes=val('ev_notes');ev.billed=document.getElementById('ev_billed').checked;
+        ev.date=val('ev_date');ev.start=val('ev_start');ev.end=val('ev_end');ev.notes=val('ev_notes');ev.billed=document.getElementById('ev_billed').checked;ev.paidToContractor=document.getElementById('ev_paid').checked;
         if(isNew)state.events.push(ev);closeModal();toast('Mission enregistrée');render();
       }}
     ].filter(Boolean));
@@ -407,7 +426,7 @@ function viewInvoices(){
   const all=activeFilter(state.invoices).slice().sort((a,b)=>(b.date+b.number).localeCompare(a.date+a.number));
   const list=invFilter==='all'?all:all.filter(i=>invFilter==='devis'?i.type==='devis':i.status===invFilter);
   const statusPill=(i)=>{
-    if(i.type==='devis')return `<span class="pill blue">Devis</span>`;
+    if(i.type==='devis')return i.status==='accepte'?`<span class="pill green">Devis accepté</span>`:`<span class="pill blue">Devis</span>`;
     return {brouillon:'<span class="pill grey">Brouillon</span>',envoyee:'<span class="pill amber">Envoyée</span>',payee:'<span class="pill green">Payée</span>',annulee:'<span class="pill red">Annulée</span>'}[i.status]||'';
   };
   document.getElementById('content').innerHTML=`
@@ -422,7 +441,7 @@ function viewInvoices(){
         <td><b>${esc(i.number)}</b></td><td class="mini">${fmtDate(i.date)}</td><td>${cl?esc(cl.name):'—'}</td>
         ${state.activeCompany==='all'?`<td><span class="row"><span class="dot" style="background:${co?co.color:'#999'}"></span>${co?esc(co.name):''}</span></td>`:''}
         <td class="right num"><b>${fmtMoney(invoiceTotals(i).ttc)}</b></td><td>${statusPill(i)}</td>
-        <td class="right"><button class="iconbtn" onclick="event.stopPropagation();printInvoice('${i.id}')" title="Imprimer / PDF">⎙</button></td></tr>`;}).join('')}
+        <td class="right" style="white-space:nowrap"><button class="iconbtn" onclick="event.stopPropagation();sendInvoiceEmail('${i.id}')" title="Envoyer au client">✉</button><button class="iconbtn" onclick="event.stopPropagation();printInvoice('${i.id}')" title="Imprimer / PDF">⎙</button></td></tr>`;}).join('')}
       </tbody></table></div>`:`<div class="empty"><div class="big">§</div>Aucun document.<br><span class="linkbtn" onclick="newInvoice('facture')">Créer une facture</span></div>`}
     </div>`;
 }
@@ -473,6 +492,9 @@ function invoiceModal(inv,isNew){
     <div style="margin-top:14px"><label>Notes / conditions</label><textarea id="inv_notes" rows="2" placeholder="Ex. Paiement à 30 jours">${esc(inv.notes)}</textarea></div>
   `,[
     isNew?'':{label:'Supprimer',cls:'danger',act:()=>{state.invoices=state.invoices.filter(i=>i.id!==inv.id);closeModal();toast('Document supprimé');render();}},
+    isNew?'':{label:'Dupliquer',cls:'ghost',act:()=>{commitInvoice(inv,isNew,false);duplicateInvoice(inv.id);}},
+    (inv.type==='devis')?{label:'→ Facture',cls:'sage',act:()=>{commitInvoice(inv,isNew,false);convertToInvoice(inv.id);}}:null,
+    (inv.type==='facture')?{label:'✉ Envoyer au client',cls:'sage',act:()=>{commitInvoice(inv,isNew,false);sendInvoiceEmail(inv.id);}}:null,
     {label:'⎙ Imprimer',cls:'ghost',act:()=>{commitInvoice(inv,isNew,false);printInvoice(inv.id);}},
     {label:'Enregistrer',cls:'',act:()=>{commitInvoice(inv,isNew,true);}}
   ].filter(Boolean),'wide');
@@ -519,6 +541,44 @@ function printInvoice(id){
   <div class="notes">${inv.notes?esc(inv.notes).replace(/\n/g,'<br>'):''}${co&&co.iban?'<br>IBAN : '+esc(co.iban):''}</div>
   <script>onload=()=>print()<\/script></body></html>`);
   w.document.close();
+}
+function duplicateInvoice(id){
+  const src=state.invoices.find(i=>i.id===id);if(!src)return;
+  const c=companyById(src.companyId);
+  const copy=JSON.parse(JSON.stringify(src));
+  copy.id=uid();copy.status='brouillon';copy.date=todayISO();copy.dueDate='';copy.sentAt=null;copy.number=nextNumber(src.companyId,src.type);
+  if(c)c.nextInvoice=(c.nextInvoice||1)+1;
+  state.invoices.push(copy);save();toast('Document dupliqué');render();invoiceModal(copy,false);
+}
+function convertToInvoice(id){
+  const dev=state.invoices.find(i=>i.id===id);if(!dev||dev.type!=='devis')return;
+  const c=companyById(dev.companyId);
+  const fac=JSON.parse(JSON.stringify(dev));
+  fac.id=uid();fac.type='facture';fac.status='brouillon';fac.date=todayISO();fac.number=nextNumber(dev.companyId,'facture');fac.sourceDevis=dev.number;
+  if(c)c.nextInvoice=(c.nextInvoice||1)+1;
+  dev.status='accepte';
+  state.invoices.push(fac);save();toast('Facture créée depuis le devis');render();invoiceModal(fac,false);
+}
+function sendInvoiceEmail(id){
+  const inv=state.invoices.find(i=>i.id===id);if(!inv)return;
+  const co=companyById(inv.companyId),cl=clientById(inv.clientId),t=invoiceTotals(inv);
+  if(!cl){toast('Sélectionne un client (avec email) d\'abord');return;}
+  const doc=inv.type==='devis'?'devis':'facture';
+  const subject=`${inv.type==='devis'?'Devis':'Facture'} ${inv.number} — ${co?co.name:''}`;
+  const body=`Bonjour${cl.contact?' '+cl.contact:''},\n\n`
+    +`Veuillez trouver ${inv.type==='devis'?'notre devis':'notre facture'} ${inv.number} d'un montant de ${fmtMoney(t.ttc)} TTC`
+    +`${inv.dueDate?`, à régler avant le ${fmtDate(inv.dueDate)}`:''}.\n\n`
+    +inv.items.map(it=>`• ${it.label} — ${fmtMoney((it.qty||0)*(it.unitPrice||0))}`).join('\n')
+    +`\n\nTotal HT : ${fmtMoney(t.ht)}\nTVA : ${fmtMoney(t.tva)}\nTotal TTC : ${fmtMoney(t.ttc)}\n\n`
+    +`${co&&co.iban?'Coordonnées bancaires (IBAN) : '+co.iban+'\n\n':''}`
+    +`Bien cordialement,\n${co?co.name:''}${co&&co.phone?'\n'+co.phone:''}`;
+  if(inv.type==='facture'&&inv.status==='brouillon')inv.status='envoyee';
+  inv.sentAt=todayISO();save();
+  // ouvre la fenêtre d'impression pour générer le PDF à joindre, puis l'email pré-rempli
+  printInvoice(id);
+  const mailto=`mailto:${encodeURIComponent(cl.email||'')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  setTimeout(()=>{window.location.href=mailto;},400);
+  closeModal();toast('Email préparé — joins le PDF imprimé');render();
 }
 
 /* ---------- Clients ---------- */
@@ -590,6 +650,57 @@ function exportLanding(id){
   <link href="https://fonts.googleapis.com/css2?family=Newsreader:wght@400;600&family=Geist:wght@300;400;600;700&display=swap" rel="stylesheet">
   <style>body{margin:0}</style></head><body>${landingHTML(co,false)}</body></html>`;
   download(`landing-${slug(co.name)}.html`,html);toast('Landing page exportée');
+}
+
+/* ---------- Rémunérations (paie indépendants) ---------- */
+function viewPay(){
+  setActions('');
+  const ks=activeFilter(state.contractors);
+  const rows=ks.map(k=>{
+    const evs=state.events.filter(e=>e.contractorId===k.id);
+    const earned=evs.reduce((s,e)=>s+eventAmount(e),0);
+    const paid=evs.filter(e=>e.paidToContractor).reduce((s,e)=>s+eventAmount(e),0);
+    const hours=evs.reduce((s,e)=>s+eventHours(e),0);
+    return {k,evs,earned,paid,due:earned-paid,hours,unpaid:evs.filter(e=>!e.paidToContractor).length};
+  }).sort((a,b)=>b.due-a.due);
+  const totalDue=rows.reduce((s,r)=>s+r.due,0);
+  const kpi=(l,v,c)=>`<div class="card kpi"><div class="lab">${l}</div><div class="val num">${v}</div><div class="accent" style="background:${c}"></div></div>`;
+  document.getElementById('content').innerHTML=`
+    <div class="grid kpis">
+      ${kpi('Total dû aux indépendants',fmtMoney(totalDue),'var(--amber)')}
+      ${kpi('Déjà réglé',fmtMoney(rows.reduce((s,r)=>s+r.paid,0)),'var(--sage)')}
+      ${kpi('Coût total missions',fmtMoney(rows.reduce((s,r)=>s+r.earned,0)),'var(--terracotta)')}
+    </div>
+    <div class="card" style="margin-top:18px">
+      ${rows.length?`<div class="tablewrap"><table><thead><tr><th>Indépendant</th><th class="right">Heures</th><th class="right">Gagné</th><th class="right">Réglé</th><th class="right">Reste à payer</th><th></th></tr></thead><tbody>
+      ${rows.map(r=>`<tr>
+        <td><span class="row"><span class="avatar" style="background:${r.k.color}">${initials(r.k.name)}</span><div><b>${esc(r.k.name)}</b><div class="mini">${esc(r.k.role)} · ${fmtMoney(r.k.rate)}/${r.k.rateType==='j'?'j':'h'}</div></div></span></td>
+        <td class="right num">${r.hours.toFixed(1)}</td>
+        <td class="right num">${fmtMoney(r.earned)}</td>
+        <td class="right num deltapos">${fmtMoney(r.paid)}</td>
+        <td class="right num"><b>${r.due>0.005?'<span class="pill amber">'+fmtMoney(r.due)+'</span>':'<span class="pill green">à jour</span>'}</b></td>
+        <td class="right"><button class="btn ghost sm" onclick="payDetail('${r.k.id}')">Détail</button>${r.due>0.005?` <button class="btn sm" onclick="settleContractor('${r.k.id}')">Régler</button>`:''}</td></tr>`).join('')}
+      </tbody></table></div>`:`<div class="empty"><div class="big">€</div>Aucun indépendant.<br><span class="linkbtn" onclick="go('contractors')">Ajouter un indépendant</span></div>`}
+    </div>
+    <p class="hint" style="margin-top:14px">« Régler » marque toutes les missions non payées de l'indépendant comme réglées et crée une dépense « Sous-traitance » en comptabilité.</p>`;
+}
+function payDetail(id){
+  const k=contractorById(id);const evs=state.events.filter(e=>e.contractorId===id).sort((a,b)=>b.date.localeCompare(a.date));
+  openModal('Missions — '+k.name,`
+    <div class="tablewrap"><table><thead><tr><th>Date</th><th>Mission</th><th class="right">Heures</th><th class="right">Montant</th><th class="center">Payé</th></tr></thead><tbody>
+    ${evs.length?evs.map(e=>`<tr>
+      <td class="mini">${fmtDate(e.date)}</td><td>${esc(e.title)}</td><td class="right num">${eventHours(e).toFixed(1)}</td><td class="right num">${fmtMoney(eventAmount(e))}</td>
+      <td class="center"><input type="checkbox" ${e.paidToContractor?'checked':''} style="width:auto" onchange="toggleEventPaid('${e.id}',this.checked)"></td></tr>`).join(''):`<tr><td colspan="5"><div class="empty">Aucune mission</div></td></tr>`}
+    </tbody></table></div>`,[{label:'Fermer',cls:'ghost',act:closeModal}],'wide');
+}
+function toggleEventPaid(id,v){const e=state.events.find(x=>x.id===id);if(e){e.paidToContractor=v;save();}}
+function settleContractor(id){
+  const k=contractorById(id);const evs=state.events.filter(e=>e.contractorId===id&&!e.paidToContractor);
+  const due=evs.reduce((s,e)=>s+eventAmount(e),0);
+  if(!confirm(`Régler ${fmtMoney(due)} à ${k.name} ? (${evs.length} mission(s))`))return;
+  evs.forEach(e=>e.paidToContractor=true);
+  state.transactions.push({id:uid(),companyId:k.companyId,date:todayISO(),type:'depense',category:'Sous-traitance',label:'Règlement '+k.name,amount:due,vat:0});
+  save();toast('Règlement enregistré');render();
 }
 
 /* ---------- Accounting ---------- */
@@ -778,6 +889,17 @@ function closeModal(){document.getElementById('modalRoot').innerHTML='';}
 function download(name,content){const blob=new Blob([content],{type:'application/octet-stream'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
 function slug(s){return (s||'page').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');}
 function shade(hex,pct){const n=parseInt(hex.slice(1),16);let r=(n>>16)+pct*2.55,g=((n>>8)&255)+pct*2.55,b=(n&255)+pct*2.55;r=Math.max(0,Math.min(255,r))|0;g=Math.max(0,Math.min(255,g))|0;b=Math.max(0,Math.min(255,b))|0;return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);}
+function barChart(series){
+  const W=720,H=200,pad=28,n=series.length;const max=Math.max(1,...series.map(s=>Math.max(s.rev,s.exp)));
+  const slot=(W-pad*2)/n,bw=Math.min(26,slot/3);
+  const y=v=>H-pad-(v/max)*(H-pad*2);
+  const bars=series.map((s,i)=>{const cx=pad+slot*i+slot/2;
+    return `<rect x="${cx-bw-2}" y="${y(s.rev)}" width="${bw}" height="${H-pad-y(s.rev)}" rx="4" fill="var(--sage)"></rect>
+      <rect x="${cx+2}" y="${y(s.exp)}" width="${bw}" height="${H-pad-y(s.exp)}" rx="4" fill="var(--rose)" opacity=".85"></rect>
+      <text x="${cx}" y="${H-8}" text-anchor="middle" font-size="11" fill="var(--muted)">${s.label}</text>`;}).join('');
+  const grid=[0,.5,1].map(f=>`<line x1="${pad}" x2="${W-pad}" y1="${y(max*f)}" y2="${y(max*f)}" stroke="var(--border)"></line><text x="${pad-4}" y="${y(max*f)+4}" text-anchor="end" font-size="10" fill="var(--muted-2)">${Math.round(max*f)}</text>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">${grid}${bars}</svg>`;
+}
 
 render();
 </script>
