@@ -1,5 +1,5 @@
 /* Service worker — fonctionnement hors-ligne pour Cockpit */
-const CACHE = 'cockpit-v2';
+const CACHE = 'cockpit-v3';
 const ASSETS = ['./', './index.html', './cockpit.webmanifest', './cockpit-icon.svg'];
 
 self.addEventListener('install', (e) => {
