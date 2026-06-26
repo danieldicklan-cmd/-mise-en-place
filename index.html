@@ -293,6 +293,7 @@ const PAGES=[
   {id:'assistant',label:'Assistant e-mail',ic:'✦'},
   {grp:'Commercial'},
   {id:'invoices',label:'Facturation',ic:'§'},
+  {id:'relances',label:'Relances',ic:'↻'},
   {id:'clients',label:'Clients',ic:'☻'},
   {id:'landing',label:'Landing pages',ic:'❖'},
   {grp:'Gestion'},
@@ -331,7 +332,7 @@ function render(){
   const page=PAGES.find(p=>p.id===current);
   document.getElementById('pageTitle').textContent=page?page.label:'Cockpit';
   document.getElementById('pageActions').innerHTML='';
-  const fns={dash:viewDash,planning:viewPlanning,agenda:viewAgenda,assistant:viewAssistant,invoices:viewInvoices,clients:viewClients,
+  const fns={dash:viewDash,planning:viewPlanning,agenda:viewAgenda,assistant:viewAssistant,invoices:viewInvoices,relances:viewRelances,clients:viewClients,
     landing:viewLanding,pay:viewPay,accounting:viewAccounting,companies:viewCompanies,contractors:viewContractors,settings:viewSettings};
   (fns[current]||viewDash)();
   save();
@@ -638,6 +639,73 @@ function sendInvoiceEmail(id){
   const mailto=`mailto:${encodeURIComponent(cl.email||'')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   setTimeout(()=>{window.location.href=mailto;},400);
   closeModal();toast('Email préparé — joins le PDF imprimé');render();
+}
+
+/* ---------- Relances ---------- */
+function invDueISO(inv){if(inv.dueDate)return inv.dueDate;const d=new Date(inv.date+'T00:00');d.setDate(d.getDate()+30);return d.toISOString().slice(0,10);}
+function daysSince(iso){return Math.round((new Date(todayISO()+'T00:00')-new Date(iso+'T00:00'))/86400000);}
+function viewRelances(){
+  setActions('');
+  const invs=activeFilter(state.invoices);
+  const factures=invs.filter(i=>i.type==='facture'&&i.status==='envoyee')
+    .map(i=>({i,due:invDueISO(i),over:daysSince(invDueISO(i))})).sort((a,b)=>b.over-a.over);
+  const devis=invs.filter(i=>i.type==='devis'&&!['accepte','annulee'].includes(i.status))
+    .map(i=>({i,age:daysSince(i.date)})).sort((a,b)=>b.age-a.age);
+  const aRecouvrer=factures.reduce((s,x)=>s+invoiceTotals(x.i).ttc,0);
+  const enRetard=factures.filter(x=>x.over>0).length;
+  const kpi=(l,v,c)=>`<div class="card kpi"><div class="lab">${l}</div><div class="val num">${v}</div><div class="accent" style="background:${c}"></div></div>`;
+  const relanceBadge=(i)=>i.relanceCount?`<span class="pill ${i.relanceCount>=3?'red':'amber'}">${i.relanceCount} relance${i.relanceCount>1?'s':''}</span>`:`<span class="pill grey">jamais</span>`;
+  document.getElementById('content').innerHTML=`
+    <div class="grid kpis">
+      ${kpi('À recouvrer',fmtMoney(aRecouvrer),'var(--rose)')}
+      ${kpi('Factures en retard',enRetard,'var(--amber)')}
+      ${kpi('Devis en attente',devis.length,'var(--blue)')}
+    </div>
+    <div class="card" style="margin-top:18px">
+      <div class="sectionhead" style="padding:14px 18px 0"><h3>Factures impayées</h3></div>
+      ${factures.length?`<div class="tablewrap"><table><thead><tr><th>N°</th><th>Client</th><th class="right">Montant</th><th>Échéance</th><th>Relances</th><th></th></tr></thead><tbody>
+      ${factures.map(({i,due,over})=>{const cl=clientById(i.clientId);return `<tr>
+        <td><b>${esc(i.number)}</b></td><td>${cl?esc(cl.name):'—'}</td><td class="right num">${fmtMoney(invoiceTotals(i).ttc)}</td>
+        <td>${over>0?`<span class="pill red">+${over} j de retard</span>`:`<span class="mini">le ${fmtDate(due)}</span>`}</td>
+        <td>${relanceBadge(i)}${i.lastRelance?`<div class="mini">le ${fmtDate(i.lastRelance)}</div>`:''}</td>
+        <td class="right" style="white-space:nowrap"><button class="btn sm" onclick="relanceInvoice('${i.id}')">↻ Relancer</button> <button class="btn ghost sm" onclick="markInvoicePaid('${i.id}')">✓ Payée</button></td></tr>`;}).join('')}
+      </tbody></table></div>`:`<div class="empty"><div class="big">✓</div>Aucune facture en attente de paiement. Bravo !</div>`}
+    </div>
+    <div class="card" style="margin-top:18px">
+      <div class="sectionhead" style="padding:14px 18px 0"><h3>Devis sans réponse</h3></div>
+      ${devis.length?`<div class="tablewrap"><table><thead><tr><th>N°</th><th>Client</th><th class="right">Montant</th><th>Envoyé il y a</th><th>Relances</th><th></th></tr></thead><tbody>
+      ${devis.map(({i,age})=>{const cl=clientById(i.clientId);return `<tr>
+        <td><b>${esc(i.number)}</b></td><td>${cl?esc(cl.name):'—'}</td><td class="right num">${fmtMoney(invoiceTotals(i).ttc)}</td>
+        <td class="mini">${age} jour${age>1?'s':''}</td><td>${relanceBadge(i)}${i.lastRelance?`<div class="mini">le ${fmtDate(i.lastRelance)}</div>`:''}</td>
+        <td class="right" style="white-space:nowrap"><button class="btn sm" onclick="relanceDevis('${i.id}')">↻ Relancer</button> <button class="btn ghost sm" onclick="convertToInvoice('${i.id}')">→ Facture</button></td></tr>`;}).join('')}
+      </tbody></table></div>`:`<div class="empty"><div class="big">↻</div>Aucun devis en attente.</div>`}
+    </div>
+    <p class="hint" style="margin-top:14px">« Relancer » ouvre un e-mail pré-rédigé (le ton se renforce à chaque rappel) et enregistre la date de relance.</p>`;
+}
+function markInvoicePaid(id){const i=state.invoices.find(x=>x.id===id);if(i){i.status='payee';save();toast('Facture marquée payée');render();}}
+function relanceInvoice(id){
+  const inv=state.invoices.find(x=>x.id===id);const cl=clientById(inv.clientId),co=companyById(inv.companyId),t=invoiceTotals(inv);
+  if(!cl){toast('Ajoute un client (avec email) sur la facture');return;}
+  const n=(inv.relanceCount||0)+1;
+  let intro;
+  if(n===1)intro=`Sauf erreur de notre part, la facture ${inv.number} d'un montant de ${fmtMoney(t.ttc)} reste à ce jour en attente de règlement. Nous vous remercions de bien vouloir procéder au paiement.`;
+  else if(n===2)intro=`Malgré notre précédent message, la facture ${inv.number} (${fmtMoney(t.ttc)}) demeure impayée. Nous vous invitons à la régulariser dans les meilleurs délais.`;
+  else intro=`DERNIER RAPPEL : la facture ${inv.number} (${fmtMoney(t.ttc)}) reste impayée malgré nos relances. Sans règlement sous 8 jours, nous serons contraints d'engager une procédure de recouvrement.`;
+  const subject=`Relance ${n>1?'n°'+n+' ':''}— Facture ${inv.number}`;
+  const body=`Bonjour${cl.contact?' '+cl.contact:''},\n\n${intro}\n\n• Facture : ${inv.number}\n• Échéance : ${fmtDate(invDueISO(inv))}\n• Montant dû : ${fmtMoney(t.ttc)}\n${co&&co.iban?'• IBAN : '+co.iban+'\n':''}\nNous restons à votre disposition pour toute question.\n\nCordialement,\n${co?co.name:''}${co&&co.phone?'\n'+co.phone:''}`;
+  inv.relanceCount=n;inv.lastRelance=todayISO();save();
+  window.location.href=`mailto:${encodeURIComponent(cl.email||'')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  toast('Relance n°'+n+' préparée');render();
+}
+function relanceDevis(id){
+  const inv=state.invoices.find(x=>x.id===id);const cl=clientById(inv.clientId),co=companyById(inv.companyId),t=invoiceTotals(inv);
+  if(!cl){toast('Ajoute un client (avec email) sur le devis');return;}
+  const n=(inv.relanceCount||0)+1;
+  const subject=`Votre devis ${inv.number}`;
+  const body=`Bonjour${cl.contact?' '+cl.contact:''},\n\nNous nous permettons de revenir vers vous concernant notre devis ${inv.number} d'un montant de ${fmtMoney(t.ttc)}. Celui-ci est toujours valable et nous serions ravis de pouvoir démarrer.\n\nRestons à votre entière disposition pour en discuter ou l'ajuster si besoin.\n\nCordialement,\n${co?co.name:''}${co&&co.phone?'\n'+co.phone:''}`;
+  inv.relanceCount=n;inv.lastRelance=todayISO();save();
+  window.location.href=`mailto:${encodeURIComponent(cl.email||'')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  toast('Relance préparée');render();
 }
 
 /* ---------- Clients ---------- */
